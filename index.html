@@ -16,11 +16,13 @@
         /* スライダーのカスタムスタイル (Tailwindのaccentカラーでカバーできない部分用) */
         input[type=range] {
             -webkit-appearance: none;
+            appearance: none;
             width: 100%;
             background: transparent;
         }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
+            appearance: none;
             height: 16px;
             width: 16px;
             border-radius: 50%;
@@ -362,11 +364,11 @@
                         units: [
                             { id: 'um', label: 'μm', factor: 1e-6 },
                             { id: 'nm', label: 'nm', factor: 1e-9 },
-                            { id: 'angstrom', label: 'Å', factor: 1e-10 }
+                            { id: 'angstrom', label: 'Å', factor: 1e-10 }
                         ],
                         state: { from: 'um', to: 'nm', value: 1 },
                         slider: { min: 0, max: 1000, step: 0.1 },
-                        note: '1 μm = 1000 nm = 10000 Å'
+                        note: '1 μm = 1000 nm = 10000 Å'
                     }
                 ];
 
