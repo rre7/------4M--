@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分子量・物質量計算ツール</title>
+    <style>
+        :root {
+            --primary-color: #3b82f6;
+            --bg-color: #f8fafc;
+            --surface-color: #ffffff;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--surface-color);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            color: #0f172a;
+        }
+
+        .subtitle {
+            color: var(--text-sub);
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            margin-bottom: 24px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        input[type="text"], input[type="number"] {
+            flex: 1;
+            padding: 12px;
+            font-size: 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        button {
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #ffffff;
+            color: var(--text-main);
+            padding: 8px 16px;
+            font-size: 14px;
+            transition: all 0.1s;
+        }
+
+        button:hover {
+            background-color: #f1f5f9;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-clear {
+            background-color: #f1f5f9;
+            font-weight: bold;
+        }
+
+        .result-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .molar-mass {
+            font-size: 36px;
+            font-weight: bold;
+            color: #0f172a;
+        }
+
+        .unit {
+            font-size: 16px;
+            color: #10b981;
+            font-weight: normal;
+        }
+
+        .status-msg { color: #10b981; font-size: 14px; }
+        .status-err { color: #ef4444; font-size: 14px; }
+
+        .calc-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .calc-box {
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .calc-box label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-sub);
+            margin-bottom: 8px;
+        }
+
+        .calc-box .unit-label {
+            position: absolute;
+            right: 25px;
+            top: 42px;
+            color: var(--text-sub);
+        }
+
+        /* スマホ等でのレイアウト崩れ防止用スクロールラッパー */
+        .periodic-table-wrapper {
+            width: 100%;
+            overflow-x: auto; /* はみ出る場合は横スクロール */
+            padding-bottom: 10px;
+        }
+
+        .periodic-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            min-width: 700px;
+        }
+
+        .legend {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: var(--text-sub);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .color-box {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #ddd;
+            border-radius: 2px;
+        }
+
+        .periodic-table {
+            display: grid;
+            /* 18列。最低45pxを確保して潰れすぎないようにする */
+            grid-template-columns: repeat(18, minmax(45px, 1fr));
+            gap: 4px;
+            min-width: 850px; /* 全体の最低幅。これより狭い画面ではスクロールになる */
+        }
+
+        .element-btn {
+            position: relative;
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2px;
+            border: 1px solid #e5e7eb;
+            background-color: #ffffff;
+            border-radius: 4px;
+            overflow: hidden; /* はみ出し防止 */
+        }
+
+        .element-btn .num {
+            position: absolute;
+            top: 2px;
+            left: 3px;
+            font-size: 9px;
+            color: #94a3b8;
+        }
+
+        .element-btn .sym {
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+
+        .element-btn .name {
+            font-size: 7px;
+            color: #64748b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis; /* 長すぎる名前を「...」で省略 */
+            width: 95%;
+            text-align: center;
+        }
+
+        /* カテゴリ別背景色 */
+        .cat-nonmetal { background-color: #f0f9ff; }
+        .cat-noble { background-color: #f3e8ff; }
+        .cat-alkali { background-color: #fef9c3; }
+        .cat-alkaline { background-color: #ecfccb; }
+        .cat-metalloid { background-color: #ecfdf5; }
+        .cat-post { background-color: #fdf2f8; }
+        .cat-transition { background-color: #ffffff; }
+        .cat-lantha { background-color: #fce7f3; }
+        .cat-actin { background-color: #fce7f3; }
+
+        /* 補助ボタンセクション */
+        .aux-section {
+            margin-top: 20px;
+        }
+
+        .aux-title {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        .btn-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+
+        .btn-aux, .btn-sub, .btn-comp {
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            border-radius: 6px;
+        }
+
+        .btn-aux { width: 40px; font-weight: bold; }
+        .btn-sub { width: 40px; }
+        .btn-comp { padding: 0 16px; color: #475569; }
+
+        @media (max-width: 600px) {
+            .calc-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="color: var(--primary-color); font-size: 12px; font-weight: bold; margin-bottom: 5px;">● PROCESS ENGINEERING TOOL</div>
+    <h1>分子量・物質量計算ツール</h1>
+    <div class="subtitle">化学式から分子量を計算し、質量と物質量を双方向・リアルタイムで換算します。（1991年原子量データ使用）</div>
+
+    <!-- 入力・結果エリア -->
+    <div class="section">
+        <label style="font-size: 14px; font-weight: bold; display: block; margin-bottom: 10px;">化学式</label>
+        <div class="input-group">
+            <input type="text" id="formulaInput" placeholder="例: H2O, Ca(OH)2, CuSO4・5H2O" autocomplete="off">
+            <button class="btn-clear" onclick="clearAll()">クリア</button>
+        </div>
+        <div class="result-area" style="margin-top: 20px;">
+            <div>
+                <div style="font-size: 12px; color: var(--text-sub);">分子量 / 式量</div>
+                <div class="molar-mass" id="molarMassDisplay">0.00000 <span class="unit">g/mol</span></div>
+            </div>
+            <div id="statusDisplay" class="status-msg"></div>
+        </div>
+    </div>
+
+    <!-- 換算エリア -->
+    <div class="section">
+        <div style="font-size: 14px; font-weight: bold; margin-bottom: 4px;">質量 ⇄ 物質量</div>
+        <div style="font-size: 12px; color: var(--text-sub); margin-bottom: 15px;">いずれかの入力値を変更すると、他の値が即座に再計算されます。</div>
+        
+        <div class="calc-grid">
+            <div class="calc-box" style="border-top: 3px solid #6366f1;">
+                <label>質量 (g)</label>
+                <input type="number" id="massG" step="any">
+                <span class="unit-label">g</span>
+            </div>
+            <div class="calc-box" style="border-top: 3px solid #10b981;">
+                <label>物質量 (mol)</label>
+                <input type="number" id="mol" step="any">
+                <span class="unit-label">mol</span>
+            </div>
+            <div class="calc-box" style="border-top: 3px solid #f97316;">
+                <label>質量 (kg)</label>
+                <input type="number" id="massKg" step="any">
+                <span class="unit-label">kg</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 周期表 UI -->
+    <div class="section">
+        <div class="periodic-table-wrapper">
+            <div class="periodic-header">
+                <div>
+                    <div style="font-size: 14px; font-weight: bold; margin-bottom: 4px;">元素を選択</div>
+                    <div style="font-size: 12px; color: var(--text-sub);">元素ボタンをクリックすると、カーソル位置に元素記号が挿入されます。</div>
+                </div>
+                <div class="legend">
+                    <div class="legend-item"><div class="color-box cat-nonmetal"></div>非金属</div>
+                    <div class="legend-item"><div class="color-box cat-noble"></div>貴ガス</div>
+                    <div class="legend-item"><div class="color-box cat-transition"></div>金属</div>
+                </div>
+            </div>
+            
+            <div class="periodic-table" id="periodicTable">
+                <!-- JSで動的生成 -->
+            </div>
+        </div>
+
+        <!-- 補助ボタン群 -->
+        <div class="aux-section">
+            <div class="aux-title">化学式 補助記号</div>
+            <div class="btn-row" id="auxSymbols"></div>
+
+            <div class="aux-title">下付き数字</div>
+            <div class="btn-row" id="subNumbers"></div>
+
+            <div class="aux-title">よく使う化合物</div>
+            <div class="btn-row" id="commonComps"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const atomicData = {
+        "H": 1.00794, "He": 4.002602, "Li": 6.941, "Be": 9.012182, "B": 10.811, "C": 12.011, "N": 14.00674, "O": 15.9994, "F": 18.9984032, "Ne": 20.1797,
+        "Na": 22.989768, "Mg": 24.3050, "Al": 26.981539, "Si": 28.0855, "P": 30.973762, "S": 32.066, "Cl": 35.4527, "Ar": 39.948, "K": 39.0983, "Ca": 40.078,
+        "Sc": 44.955910, "Ti": 47.88, "V": 50.9415, "Cr": 51.9961, "Mn": 54.93805, "Fe": 55.847, "Co": 58.93320, "Ni": 58.6934, "Cu": 63.546, "Zn": 65.39,
+        "Ga": 69.723, "Ge": 72.61, "As": 74.92159, "Se": 78.96, "Br": 79.904, "Kr": 83.80, "Rb": 85.4678, "Sr": 87.62, "Y": 88.90585, "Zr": 91.224,
+        "Nb": 92.90638, "Mo": 95.94, "Tc": 0, "Ru": 101.07, "Rh": 102.90550, "Pd": 106.42, "Ag": 107.8682, "Cd": 112.411, "In": 114.818, "Sn": 118.710, "Sb": 121.757,
+        "Te": 127.60, "I": 126.90447, "Xe": 131.29, "Cs": 132.90543, "Ba": 137.327, "La": 138.9055, "Ce": 140.115, "Pr": 140.90765, "Nd": 144.24, "Pm": 0,
+        "Sm": 150.36, "Eu": 151.965, "Gd": 157.25, "Tb": 158.92534, "Dy": 162.50, "Ho": 164.93032, "Er": 167.26, "Tm": 168.93421, "Yb": 173.04, "Lu": 174.967,
+        "Hf": 178.49, "Ta": 180.9479, "W": 183.84, "Re": 186.207, "Os": 190.23, "Ir": 192.22, "Pt": 195.08, "Au": 196.96654, "Hg": 200.59, "Tl": 204.3833,
+        "Pb": 207.2, "Bi": 208.98037, "Po": 0, "At": 0, "Rn": 0, "Fr": 0, "Ra": 0, "Ac": 0, "Th": 232.0381, "Pa": 231.03588, "U": 238.0289, "Np": 0, "Pu": 0,
+        "Am": 0, "Cm": 0, "Bk": 0, "Cf": 0, "Es": 0, "Fm": 0, "Md": 0, "No": 0, "Lr": 0, "Unq": 0, "Unp": 0, "Unh": 0, "Uns": 0, "Uno": 0, "Une": 0
+    };
+
+    const elementsLayout = [
+        [1,'H','水素',1,1,'cat-nonmetal'], [2,'He','ヘリウム',18,1,'cat-noble'],
+        [3,'Li','リチウム',1,2,'cat-alkali'], [4,'Be','ベリリウム',2,2,'cat-alkaline'], [5,'B','ホウ素',13,2,'cat-metalloid'], [6,'C','炭素',14,2,'cat-nonmetal'], [7,'N','窒素',15,2,'cat-nonmetal'], [8,'O','酸素',16,2,'cat-nonmetal'], [9,'F','フッ素',17,2,'cat-nonmetal'], [10,'Ne','ネオン',18,2,'cat-noble'],
+        [11,'Na','ナトリウム',1,3,'cat-alkali'], [12,'Mg','マグネシウム',2,3,'cat-alkaline'], [13,'Al','アルミニウム',13,3,'cat-post'], [14,'Si','ケイ素',14,3,'cat-metalloid'], [15,'P','リン',15,3,'cat-nonmetal'], [16,'S','硫黄',16,3,'cat-nonmetal'], [17,'Cl','塩素',17,3,'cat-nonmetal'], [18,'Ar','アルゴン',18,3,'cat-noble'],
+        [19,'K','カリウム',1,4,'cat-alkali'], [20,'Ca','カルシウム',2,4,'cat-alkaline'], [21,'Sc','スカンジウム',3,4,'cat-transition'], [22,'Ti','チタン',4,4,'cat-transition'], [23,'V','バナジウム',5,4,'cat-transition'], [24,'Cr','クロム',6,4,'cat-transition'], [25,'Mn','マンガン',7,4,'cat-transition'], [26,'Fe','鉄',8,4,'cat-transition'], [27,'Co','コバルト',9,4,'cat-transition'], [28,'Ni','ニッケル',10,4,'cat-transition'], [29,'Cu','銅',11,4,'cat-transition'], [30,'Zn','亜鉛',12,4,'cat-transition'], [31,'Ga','ガリウム',13,4,'cat-post'], [32,'Ge','ゲルマニウム',14,4,'cat-metalloid'], [33,'As','ヒ素',15,4,'cat-metalloid'], [34,'Se','セレン',16,4,'cat-nonmetal'], [35,'Br','臭素',17,4,'cat-nonmetal'], [36,'Kr','クリプトン',18,4,'cat-noble'],
+        [37,'Rb','ルビジウム',1,5,'cat-alkali'], [38,'Sr','ストロンチウム',2,5,'cat-alkaline'], [39,'Y','イットリウム',3,5,'cat-transition'], [40,'Zr','ジルコニウム',4,5,'cat-transition'], [41,'Nb','ニオブ',5,5,'cat-transition'], [42,'Mo','モリブデン',6,5,'cat-transition'], [43,'Tc','テクネチウム',7,5,'cat-transition'], [44,'Ru','ルテニウム',8,5,'cat-transition'], [45,'Rh','ロジウム',9,5,'cat-transition'], [46,'Pd','パラジウム',10,5,'cat-transition'], [47,'Ag','銀',11,5,'cat-transition'], [48,'Cd','カドミウム',12,5,'cat-transition'], [49,'In','インジウム',13,5,'cat-post'], [50,'Sn','スズ',14,5,'cat-post'], [51,'Sb','アンチモン',15,5,'cat-metalloid'], [52,'Te','テルル',16,5,'cat-metalloid'], [53,'I','ヨウ素',17,5,'cat-nonmetal'], [54,'Xe','キセノン',18,5,'cat-noble'],
+        [55,'Cs','セシウム',1,6,'cat-alkali'], [56,'Ba','バリウム',2,6,'cat-alkaline'], [57,'La','ランタン',3,6,'cat-lantha'], [72,'Hf','ハフニウム',4,6,'cat-transition'], [73,'Ta','タンタル',5,6,'cat-transition'], [74,'W','タングステン',6,6,'cat-transition'], [75,'Re','レニウム',7,6,'cat-transition'], [76,'Os','オスミウム',8,6,'cat-transition'], [77,'Ir','イリジウム',9,6,'cat-transition'], [78,'Pt','白金',10,6,'cat-transition'], [79,'Au','金',11,6,'cat-transition'], [80,'Hg','水銀',12,6,'cat-transition'], [81,'Tl','タリウム',13,6,'cat-post'], [82,'Pb','鉛',14,6,'cat-post'], [83,'Bi','ビスマス',15,6,'cat-post'], [84,'Po','ポロニウム',16,6,'cat-metalloid'], [85,'At','アスタチン',17,6,'cat-nonmetal'], [86,'Rn','ラドン',18,6,'cat-noble'],
+        [87,'Fr','フランシウム',1,7,'cat-alkali'], [88,'Ra','ラジウム',2,7,'cat-alkaline'], [104,'Unq','ウンニルクアジウム',4,7,'cat-transition'], [105,'Unp','ウンニルペンチウム',5,7,'cat-transition'], [106,'Unh','ウンニルヘキシウム',6,7,'cat-transition'], [107,'Uns','ウンニルセプチウム',7,7,'cat-transition'], [108,'Uno','ウンニルオクチウム',8,7,'cat-transition'], [109,'Une','ウンニルエンニウム',9,7,'cat-transition'],
+        [58,'Ce','セリウム',4,9,'cat-lantha'], [59,'Pr','プラセオジム',5,9,'cat-lantha'], [60,'Nd','ネオジム',6,9,'cat-lantha'], [61,'Pm','プロメチウム',7,9,'cat-lantha'], [62,'Sm','サマリウム',8,9,'cat-lantha'], [63,'Eu','ユウロピウム',9,9,'cat-lantha'], [64,'Gd','ガドリニウム',10,9,'cat-lantha'], [65,'Tb','テルビウム',11,9,'cat-lantha'], [66,'Dy','ジスプロシウム',12,9,'cat-lantha'], [67,'Ho','ホルミウム',13,9,'cat-lantha'], [68,'Er','エルビウム',14,9,'cat-lantha'], [69,'Tm','ツリウム',15,9,'cat-lantha'], [70,'Yb','イッテルビウム',16,9,'cat-lantha'], [71,'Lu','ルテチウム',17,9,'cat-lantha'],
+        [89,'Ac','アクチニウム',3,10,'cat-actin'], [90,'Th','トリウム',4,10,'cat-actin'], [91,'Pa','プロトアクチニウム',5,10,'cat-actin'], [92,'U','ウラン',6,10,'cat-actin'], [93,'Np','ネプツニウム',7,10,'cat-actin'], [94,'Pu','プルトニウム',8,10,'cat-actin'], [95,'Am','アメリシウム',9,10,'cat-actin'], [96,'Cm','キュリウム',10,10,'cat-actin'], [97,'Bk','バークリウム',11,10,'cat-actin'], [98,'Cf','カリホルニウム',12,10,'cat-actin'], [99,'Es','アインスタイニウム',13,10,'cat-actin'], [100,'Fm','フェルミウム',14,10,'cat-actin'], [101,'Md','メンデレビウム',15,10,'cat-actin'], [102,'No','ノーベリウム',16,10,'cat-actin'], [103,'Lr','ローレンシウム',17,10,'cat-actin']
+    ];
+
+    let currentMolarMass = 0;
+
+    function init() {
+        const pt = document.getElementById('periodicTable');
+        elementsLayout.forEach(el => {
+            const btn = document.createElement('button');
+            btn.className = `element-btn ${el[5]}`;
+            btn.style.gridColumn = el[3];
+            btn.style.gridRow = el[4];
+            btn.innerHTML = `<span class="num">${el[0]}</span><div class="sym">${el[1]}</div><span class="name" title="${el[2]}">${el[2]}</span>`;
+            btn.onclick = () => insertText(el[1]);
+            pt.appendChild(btn);
+        });
+
+        const aux = document.getElementById('auxSymbols');
+        const auxChars = ['(', ')', '・', '+', '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+        auxChars.forEach(ch => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-aux';
+            btn.innerText = ch;
+            btn.onclick = () => insertText(ch);
+            aux.appendChild(btn);
+        });
+
+        const sub = document.getElementById('subNumbers');
+        for (let i = 1; i <= 9; i++) createSubBtn(i.toString(), sub);
+        createSubBtn('0', sub);
+
+        const comps = document.getElementById('commonComps');
+        const compList = [
+            { label: 'H₂O', val: 'H2O' }, { label: 'CO₂', val: 'CO2' }, { label: 'CH₄', val: 'CH4' },
+            { label: 'NH₃', val: 'NH3' }, { label: 'H₂SO₄', val: 'H2SO4' }, { label: 'NaOH', val: 'NaOH' },
+            { label: 'CaCO₃', val: 'CaCO3' }, { label: 'Ca(OH)₂', val: 'Ca(OH)2' }, 
+            { label: 'Al₂(SO₄)₃', val: 'Al2(SO4)3' }, { label: 'CuSO₄・5H₂O', val: 'CuSO4・5H2O' }
+        ];
+        compList.forEach(c => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-comp';
+            btn.innerText = c.label;
+            btn.onclick = () => {
+                document.getElementById('formulaInput').value = c.val;
+                calculateMolarMass();
+            };
+            comps.appendChild(btn);
+        });
+
+        document.getElementById('formulaInput').addEventListener('input', calculateMolarMass);
+        document.getElementById('massG').addEventListener('input', () => calcFrom('g'));
+        document.getElementById('mol').addEventListener('input', () => calcFrom('mol'));
+        document.getElementById('massKg').addEventListener('input', () => calcFrom('kg'));
+    }
+
+    function createSubBtn(num, container) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-sub';
+        btn.innerText = num;
+        btn.onclick = () => insertText(num);
+        container.appendChild(btn);
+    }
+
+    function insertText(text) {
+        const input = document.getElementById('formulaInput');
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        input.value = input.value.substring(0, start) + text + input.value.substring(end);
+        input.focus();
+        input.setSelectionRange(start + text.length, start + text.length);
+        calculateMolarMass();
+    }
+
+    function clearAll() {
+        document.getElementById('formulaInput').value = '';
+        document.getElementById('massG').value = '';
+        document.getElementById('mol').value = '';
+        document.getElementById('massKg').value = '';
+        currentMolarMass = 0;
+        document.getElementById('molarMassDisplay').innerHTML = `0.00000 <span class="unit">g/mol</span>`;
+        document.getElementById('statusDisplay').innerText = '';
+    }
+
+    function parseFormula(formula) {
+        formula = formula.replace(/\s+/g, '');
+        if (!formula) return 0;
+        const parts = formula.split(/[・*]/);
+        let totalMass = 0;
+
+        for (let i = 0; i < parts.length; i++) {
+            let part = parts[i];
+            if (!part) continue;
+
+            let coefficient = 1;
+            const coefMatch = part.match(/^(\d+)(.*)/);
+            if (coefMatch) {
+                coefficient = parseInt(coefMatch[1]);
+                part = coefMatch[2];
+            }
+
+            const mass = parseGroup(part);
+            if (mass === null || mass === 0) return null;
+            totalMass += coefficient * mass;
+        }
+        return totalMass;
+    }
+
+    function parseGroup(str) {
+        let i = 0;
+        const stack = [{ mass: 0 }];
+
+        while (i < str.length) {
+            const char = str[i];
+            
+            if (char === '(') {
+                stack.push({ mass: 0 });
+                i++;
+            } else if (char === ')') {
+                if (stack.length === 1) return null; 
+                const group = stack.pop();
+                i++;
+                let numStr = '';
+                while (i < str.length && /\d/.test(str[i])) {
+                    numStr += str[i];
+                    i++;
+                }
+                stack[stack.length - 1].mass += group.mass * (numStr ? parseInt(numStr) : 1);
+            } else if (/[A-Z]/.test(char)) {
+                let element = char;
+                i++;
+                if (i < str.length && /[a-z]/.test(str[i])) {
+                    element += str[i];
+                    i++;
+                }
+                let numStr = '';
+                while (i < str.length && /\d/.test(str[i])) {
+                    numStr += str[i];
+                    i++;
+                }
+                
+                const val = atomicData[element];
+                if (val !== undefined && val > 0) {
+                    stack[stack.length - 1].mass += val * (numStr ? parseInt(numStr) : 1);
+                } else {
+                    return null; 
+                }
+            } else {
+                return null; 
+            }
+        }
+        
+        if (stack.length !== 1) return null; 
+        return stack[0].mass;
+    }
+
+    function calculateMolarMass() {
+        const formula = document.getElementById('formulaInput').value;
+        const status = document.getElementById('statusDisplay');
+        const display = document.getElementById('molarMassDisplay');
+
+        if (!formula) {
+            currentMolarMass = 0;
+            display.innerHTML = `0.00000 <span class="unit">g/mol</span>`;
+            status.innerText = '';
+            return;
+        }
+
+        const mass = parseFormula(formula);
+
+        if (mass === null) {
+            status.className = 'status-err';
+            status.innerText = '✕ 化学式を正しく解析できません';
+            display.innerHTML = `--- <span class="unit">g/mol</span>`;
+            currentMolarMass = 0;
+        } else {
+            status.className = 'status-msg';
+            status.innerText = '✓ 化学式を正常に解析しました';
+            display.innerHTML = `${mass.toFixed(5)} <span class="unit">g/mol</span>`;
+            currentMolarMass = mass;
+            
+            if (document.getElementById('massG').value) calcFrom('g');
+            else if (document.getElementById('mol').value) calcFrom('mol');
+            else if (document.getElementById('massKg').value) calcFrom('kg');
+        }
+    }
+
+    function calcFrom(type) {
+        if (currentMolarMass === 0) return;
+
+        const elG = document.getElementById('massG');
+        const elMol = document.getElementById('mol');
+        const elKg = document.getElementById('massKg');
+
+        if (type === 'g') {
+            const g = parseFloat(elG.value);
+            if (!isNaN(g)) {
+                elMol.value = (g / currentMolarMass).toFixed(8);
+                elKg.value = (g / 1000).toFixed(6);
+            } else { elMol.value = ''; elKg.value = ''; }
+        } else if (type === 'mol') {
+            const mol = parseFloat(elMol.value);
+            if (!isNaN(mol)) {
+                const g = mol * currentMolarMass;
+                elG.value = g.toFixed(4);
+                elKg.value = (g / 1000).toFixed(6);
+            } else { elG.value = ''; elKg.value = ''; }
+        } else if (type === 'kg') {
+            const kg = parseFloat(elKg.value);
+            if (!isNaN(kg)) {
+                const g = kg * 1000;
+                elG.value = g.toFixed(4);
+                elMol.value = (g / currentMolarMass).toFixed(8);
+            } else { elG.value = ''; elMol.value = ''; }
+        }
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>

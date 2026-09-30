@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プロセス工学 単位換算ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+            color: #1e293b; /* slate-800 */
+        }
+        /* スライダーのカスタムスタイル (Tailwindのaccentカラーでカバーできない部分用) */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #2563eb; /* blue-600 */
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #bfdbfe;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e2e8f0; /* slate-200 */
+            border-radius: 2px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        /* スクロールバーの非表示（フィルタチップ部分用） */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
+        
+        <!-- Header Section -->
+        <header class="mb-8 mt-4">
+            <h1 class="text-3xl font-extrabold text-slate-800 mb-3 tracking-tight">プロセス工学 単位換算ツール</h1>
+            <p class="text-sm text-slate-500 font-medium">各次元につき「変換元→変換先」の1計算。単位を選び、数値を入力して即座に換算します。</p>
+        </header>
+
+        <!-- Filter Chips Section -->
+        <div class="flex gap-2 pb-4 mb-6 flex-wrap justify-center md:justify-start">
+            <button 
+                v-for="cat in categories" 
+                :key="cat"
+                @click="activeCategory = cat"
+                :class="['whitespace-nowrap px-4 py-2 rounded-full text-sm font-semibold transition-colors duration-200 shadow-sm border', 
+                         activeCategory === cat ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50']"
+            >
+                {{ cat }}
+            </button>
+        </div>
+
+        <!-- Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div 
+                v-for="(item, index) in filteredData" 
+                :key="item.id"
+                class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-col gap-5 hover:shadow-md transition-shadow duration-300"
+            >
+                <!-- Card Header -->
+                <div>
+                    <div class="text-blue-600 font-bold text-xs mb-1">{{ item.category }}</div>
+                    <h2 class="text-xl font-extrabold text-slate-800">{{ item.title }}</h2>
+                </div>
+
+                <!-- Unit Selection & Swap -->
+                <div class="flex items-end justify-between gap-3">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">変換元</label>
+                        <select v-model="item.state.from" class="block w-full rounded-xl border-0 py-2.5 pl-3 pr-10 text-slate-800 ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-blue-600 text-sm font-semibold bg-slate-50 cursor-pointer">
+                            <option v-for="u in item.units" :key="'from-'+u.id" :value="u.id">{{ u.label }}</option>
+                        </select>
+                    </div>
+                    
+                    <button @click="swapUnits(item)" class="mb-1 p-2 rounded-full bg-slate-50 hover:bg-slate-200 text-slate-400 hover:text-blue-600 transition-colors ring-1 ring-inset ring-slate-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+                            <path d="M4 9V4h5"/>
+                        </svg>
+                    </button>
+
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">変換先</label>
+                        <select v-model="item.state.to" class="block w-full rounded-xl border-0 py-2.5 pl-3 pr-10 text-slate-800 ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-blue-600 text-sm font-semibold bg-slate-50 cursor-pointer">
+                            <option v-for="u in item.units" :key="'to-'+u.id" :value="u.id">{{ u.label }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Number Input -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">数値</label>
+                    <input 
+                        type="number" 
+                        v-model.number="item.state.value" 
+                        class="block w-full rounded-xl border-0 py-3 px-4 text-slate-800 ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-blue-600 text-lg font-bold bg-white"
+                        placeholder="数値を入力"
+                    >
+                </div>
+
+                <!-- Slider -->
+                <div class="mt-2">
+                    <input 
+                        type="range" 
+                        v-model.number="item.state.value" 
+                        :min="item.slider.min" 
+                        :max="item.slider.max"
+                        :step="item.slider.step || 1"
+                    >
+                    <div class="flex justify-between text-[10px] text-slate-400 font-medium mt-1">
+                        <span>{{ item.slider.min }}</span>
+                        <span>{{ item.slider.max.toLocaleString() }}</span>
+                    </div>
+                </div>
+
+                <!-- Result Area -->
+                <div class="bg-blue-50/70 rounded-2xl p-5 flex items-baseline justify-between gap-4 border border-blue-100/50 mt-2">
+                    <div class="text-3xl md:text-4xl font-black text-blue-600 tracking-tight truncate" :title="calcResult(item)">
+                        {{ formatResult(calcResult(item)) }}
+                    </div>
+                    <div class="text-blue-700 font-bold text-sm shrink-0">
+                        {{ getUnitLabel(item, item.state.to) }}
+                    </div>
+                </div>
+
+                <!-- Note -->
+                <div v-if="item.note" class="text-[11px] text-slate-400 leading-relaxed mt-auto pt-2 border-t border-slate-50">
+                    {{ item.note }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+
+        createApp({
+            setup() {
+                // Category list based on requirements
+                const categories = [
+                    'すべて', '質量', '体積・容量', '温度', '長さ', '速度', 
+                    '質量流量', '体積流量', '圧力', 'エネルギー・熱量', '熱出力・動力', 
+                    '比熱容量', '熱伝達率', '熱伝導率', '粘度', '動粘度', '物質の量', '微小な長さ'
+                ];
+                const activeCategory = ref('すべて');
+
+                // Define conversion factors relative to a base unit for each category.
+                // Note: 'factor' means: 1 [unit] = factor * [baseUnit]
+                const definitions = [
+                    {
+                        id: 'mass', category: '質量', title: '質量',
+                        units: [
+                            { id: 'kg', label: 'kg', factor: 1 },
+                            { id: 'g', label: 'g', factor: 0.001 },
+                            { id: 'lb', label: 'lb', factor: 0.45359237 },
+                            { id: 'oz', label: 'oz', factor: 0.028349523125 },
+                            { id: 'slug', label: 'slug', factor: 14.5939 }
+                        ],
+                        state: { from: 'kg', to: 'lb', value: 1 },
+                        slider: { min: 0, max: 1000 },
+                        note: '1 lb ≈ 0.4536 kg, 1 oz ≈ 28.35 g, 1 slug ≈ 14.59 kg'
+                    },
+                    {
+                        id: 'volume', category: '体積・容量', title: '体積・容量',
+                        units: [
+                            { id: 'm3', label: 'm³', factor: 1 },
+                            { id: 'L', label: 'L', factor: 0.001 },
+                            { id: 'ryubei', label: 'りゅうべい', factor: 1 },
+                            { id: 'ft3', label: 'ft³', factor: 0.0283168 },
+                            { id: 'gal', label: 'gal', factor: 0.00378541 }
+                        ],
+                        state: { from: 'm3', to: 'L', value: 1 },
+                        slider: { min: 0, max: 100 },
+                        note: '1 m³ = 1000 L、1 ft³ ≈ 28.3 L、1 gal (US) ≈ 3.785 L'
+                    },
+                    {
+                        id: 'temperature', category: '温度', title: '温度',
+                        isSpecial: true,
+                        units: [
+                            { id: 'K', label: 'K' },
+                            { id: 'C', label: '℃' },
+                            { id: 'F', label: '℉' },
+                            { id: 'R', label: '°R' }
+                        ],
+                        state: { from: 'C', to: 'F', value: 25 },
+                        slider: { min: -100, max: 1000, step: 0.1 },
+                        note: 'K = ℃ + 273.15、℉ = ℃ × 1.8 + 32、°R = K × 1.8'
+                    },
+                    {
+                        id: 'length', category: '長さ', title: '長さ',
+                        units: [
+                            { id: 'm', label: 'm', factor: 1 },
+                            { id: 'cm', label: 'cm', factor: 0.01 },
+                            { id: 'mm', label: 'mm', factor: 0.001 },
+                            { id: 'in', label: 'in', factor: 0.0254 },
+                            { id: 'ft', label: 'ft', factor: 0.3048 },
+                            { id: 'yd', label: 'yd', factor: 0.9144 }
+                        ],
+                        state: { from: 'm', to: 'mm', value: 1 },
+                        slider: { min: 0, max: 1000 },
+                        note: '1 in = 25.4 mm、1 ft = 0.3048 m、1 yd = 0.9144 m'
+                    },
+                    {
+                        id: 'velocity', category: '速度', title: '速度',
+                        units: [
+                            { id: 'm_s', label: 'm/s', factor: 1 },
+                            { id: 'km_h', label: 'km/h', factor: 1 / 3.6 },
+                            { id: 'ft_s', label: 'ft/s', factor: 0.3048 }
+                        ],
+                        state: { from: 'km_h', to: 'm_s', value: 60 },
+                        slider: { min: 0, max: 300 },
+                        note: '1 m/s = 3.6 km/h、1 ft/s = 0.3048 m/s'
+                    },
+                    {
+                        id: 'mass_flow', category: '質量流量', title: '質量流量',
+                        units: [
+                            { id: 'kg_s', label: 'kg/s', factor: 1 },
+                            { id: 'kg_h', label: 'kg/h', factor: 1 / 3600 },
+                            { id: 'lb_h', label: 'lb/h', factor: 0.45359237 / 3600 }
+                        ],
+                        state: { from: 'kg_h', to: 'kg_s', value: 3600 },
+                        slider: { min: 0, max: 10000 },
+                        note: '1 kg/s = 3600 kg/h、1 lb/h ≈ 0.4536 kg/h'
+                    },
+                    {
+                        id: 'vol_flow', category: '体積流量', title: '体積流量',
+                        units: [
+                            { id: 'm3_s', label: 'm³/s', factor: 1 },
+                            { id: 'L_min', label: 'L/min', factor: 0.001 / 60 },
+                            { id: 'm3_h', label: 'm³/h', factor: 1 / 3600 }
+                        ],
+                        state: { from: 'm3_h', to: 'L_min', value: 1 },
+                        slider: { min: 0, max: 5000 },
+                        note: '1 m³/s = 3600 m³/h、1 m³/h ≈ 16.67 L/min'
+                    },
+                    {
+                        id: 'pressure', category: '圧力', title: '圧力',
+                        units: [
+                            { id: 'Pa', label: 'Pa', factor: 1 },
+                            { id: 'atm', label: 'atm', factor: 101325 },
+                            { id: 'kgfcm2', label: 'kgf/cm²', factor: 98066.5 },
+                            { id: 'mmHg', label: 'mmHg', factor: 133.322387415 },
+                            { id: 'psi', label: 'psi', factor: 6894.757 },
+                            { id: 'bar', label: 'bar', factor: 100000 }
+                        ],
+                        state: { from: 'atm', to: 'Pa', value: 1 },
+                        slider: { min: 0, max: 100 },
+                        note: '1 atm = 101325 Pa、1 bar = 10⁵ Pa、1 psi ≈ 6894.8 Pa'
+                    },
+                    {
+                        id: 'energy', category: 'エネルギー・熱量', title: 'エネルギー・熱量',
+                        units: [
+                            { id: 'J', label: 'J', factor: 1 },
+                            { id: 'cal', label: 'cal', factor: 4.184 },
+                            { id: 'kcal', label: 'kcal', factor: 4184 },
+                            { id: 'Btu', label: 'Btu', factor: 1055.056 }
+                        ],
+                        state: { from: 'kcal', to: 'J', value: 1 },
+                        slider: { min: 0, max: 10000 },
+                        note: '1 kcal = 4184 J、1 Btu ≈ 1055.1 J = 0.252 kcal'
+                    },
+                    {
+                        id: 'power', category: '熱出力・動力', title: '熱出力・動力',
+                        units: [
+                            { id: 'W', label: 'W', factor: 1 },
+                            { id: 'kW', label: 'kW', factor: 1000 },
+                            { id: 'kcal_h', label: 'kcal/h', factor: 1.163 },
+                            { id: 'HP', label: 'HP', factor: 745.699872 }
+                        ],
+                        state: { from: 'kW', to: 'HP', value: 1 },
+                        slider: { min: 0, max: 1000 },
+                        note: '1 kW = 1000 W、1 HP(英) ≈ 745.7 W、1 kcal/h ≈ 1.163 W'
+                    },
+                    {
+                        id: 'specific_heat', category: '比熱容量', title: '比熱容量',
+                        units: [
+                            { id: 'J_kgK', label: 'J/(kg・K)', factor: 1 },
+                            { id: 'kcal_kgC', label: 'kcal/(kg・℃)', factor: 4184 }
+                        ],
+                        state: { from: 'kcal_kgC', to: 'J_kgK', value: 1 },
+                        slider: { min: 0, max: 10, step: 0.1 },
+                        note: '1 kcal/(kg・℃) = 4184 J/(kg・K)'
+                    },
+                    {
+                        id: 'heat_transfer', category: '熱伝達率', title: '熱伝達率',
+                        units: [
+                            { id: 'W_m2K', label: 'W/(m²・K)', factor: 1 },
+                            { id: 'kcal_m2hC', label: 'kcal/(m²・h・℃)', factor: 1.163 }
+                        ],
+                        state: { from: 'W_m2K', to: 'kcal_m2hC', value: 100 },
+                        slider: { min: 0, max: 5000 },
+                        note: '1 W/(m²・K) ≈ 0.86 kcal/(m²・h・℃)'
+                    },
+                    {
+                        id: 'thermal_cond', category: '熱伝導率', title: '熱伝導率',
+                        units: [
+                            { id: 'W_mK', label: 'W/(m・K)', factor: 1 },
+                            { id: 'kcal_mhC', label: 'kcal/(m・h・℃)', factor: 1.163 }
+                        ],
+                        state: { from: 'W_mK', to: 'kcal_mhC', value: 1 },
+                        slider: { min: 0, max: 500, step: 0.1 },
+                        note: '1 W/(m・K) ≈ 0.86 kcal/(m・h・℃)'
+                    },
+                    {
+                        id: 'viscosity', category: '粘度', title: '粘度',
+                        units: [
+                            { id: 'Pas', label: 'Pa・s', factor: 1 },
+                            { id: 'mPas', label: 'mPa・s', factor: 0.001 },
+                            { id: 'P', label: 'P(ポアズ)', factor: 0.1 },
+                            { id: 'cP', label: 'cP(センチポアズ)', factor: 0.001 }
+                        ],
+                        state: { from: 'Pas', to: 'cP', value: 1 },
+                        slider: { min: 0, max: 10, step: 0.01 },
+                        note: '1 Pa・s = 10 P = 1000 mPa・s = 1000 cP'
+                    },
+                    {
+                        id: 'kinematic_viscosity', category: '動粘度', title: '動粘度',
+                        units: [
+                            { id: 'm2s', label: 'm²/s', factor: 1 },
+                            { id: 'St', label: 'St(ストークス)', factor: 1e-4 },
+                            { id: 'cSt', label: 'cSt(センチストークス)', factor: 1e-6 }
+                        ],
+                        state: { from: 'm2s', to: 'cSt', value: 0.0001 },
+                        slider: { min: 0, max: 0.1, step: 0.0001 },
+                        note: '1 m²/s = 10⁴ St = 10⁶ cSt'
+                    },
+                    {
+                        id: 'amount', category: '物質の量', title: '物質の量',
+                        units: [
+                            { id: 'mol', label: 'mol', factor: 1 },
+                            { id: 'kmol', label: 'kmol', factor: 1000 },
+                            { id: 'g_atom', label: 'グラム原子', factor: 1 },
+                            { id: 'g_mol', label: 'グラム分子', factor: 1 }
+                        ],
+                        state: { from: 'kmol', to: 'mol', value: 1 },
+                        slider: { min: 0, max: 100 },
+                        note: 'グラム原子・グラム分子はそれぞれ単原子・分子1molに相当'
+                    },
+                    {
+                        id: 'micro_length', category: '微小な長さ', title: '微小な長さ',
+                        units: [
+                            { id: 'um', label: 'μm', factor: 1e-6 },
+                            { id: 'nm', label: 'nm', factor: 1e-9 },
+                            { id: 'angstrom', label: 'Å', factor: 1e-10 }
+                        ],
+                        state: { from: 'um', to: 'nm', value: 1 },
+                        slider: { min: 0, max: 1000, step: 0.1 },
+                        note: '1 μm = 1000 nm = 10000 Å'
+                    }
+                ];
+
+                const unitData = ref(definitions);
+
+                // Filter logic
+                const filteredData = computed(() => {
+                    if (activeCategory.value === 'すべて') return unitData.value;
+                    return unitData.value.filter(d => d.category === activeCategory.value);
+                });
+
+                // Helper to swap units
+                const swapUnits = (item) => {
+                    const temp = item.state.from;
+                    item.state.from = item.state.to;
+                    item.state.to = temp;
+                };
+
+                // Helper to get unit label for display
+                const getUnitLabel = (item, unitId) => {
+                    const u = item.units.find(x => x.id === unitId);
+                    return u ? u.label : '';
+                };
+
+                // Main calculation logic
+                const calcResult = (item) => {
+                    const val = item.state.value;
+                    if (typeof val !== 'number' || isNaN(val)) return 0;
+
+                    // Temperature uses offset math
+                    if (item.isSpecial && item.id === 'temperature') {
+                        // Convert FROM unit to Kelvin (base)
+                        let kelvin = val;
+                        if (item.state.from === 'C') kelvin = val + 273.15;
+                        if (item.state.from === 'F') kelvin = (val - 32) * 5/9 + 273.15;
+                        if (item.state.from === 'R') kelvin = val * 5/9;
+
+                        // Convert Kelvin to TO unit
+                        if (item.state.to === 'K') return kelvin;
+                        if (item.state.to === 'C') return kelvin - 273.15;
+                        if (item.state.to === 'F') return (kelvin - 273.15) * 9/5 + 32;
+                        if (item.state.to === 'R') return kelvin * 9/5;
+                    }
+
+                    // Standard linear conversion
+                    const fromUnit = item.units.find(x => x.id === item.state.from);
+                    const toUnit = item.units.find(x => x.id === item.state.to);
+                    
+                    if (!fromUnit || !toUnit) return 0;
+
+                    // Convert to base unit, then to target unit
+                    const inBase = val * fromUnit.factor;
+                    return inBase / toUnit.factor;
+                };
+
+                // Format numbers for clean display
+                const formatResult = (num) => {
+                    if (num === 0) return "0";
+                    if (Math.abs(num) < 0.0001 || Math.abs(num) >= 10000000) {
+                        return num.toExponential(4).replace('e+', 'e');
+                    }
+                    
+                    // Round to avoid float precision issues like 0.30000000000000004
+                    const rounded = Math.round(num * 1000000) / 1000000;
+                    
+                    return rounded.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 6
+                    });
+                };
+
+                return {
+                    categories,
+                    activeCategory,
+                    filteredData,
+                    swapUnits,
+                    getUnitLabel,
+                    calcResult,
+                    formatResult
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
